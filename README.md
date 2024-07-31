@@ -1,4 +1,7 @@
 # HPCShowCase
 High performance computing codes
-Tools: 
-- [VALGRIND]: for memory profiling
+
+A basic code for MPI based particle simulator. 
+
+[[ CUDA CODES ]] 
+Check cuda repository
