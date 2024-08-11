@@ -93,14 +93,12 @@ int main() {
 
     // Allocate and initialize arrays
     int* inp_array = nullptr;
-    int* out_cpu_array = nullptr;
+    int* out_cpu_array = new int[SHAPE];
     int* out_gpu_array = nullptr;
 
-    cudaHostAlloc(&inp_array, bytesOfArray, cudaHostAllocDefault);
-    cudaHostAlloc(&out_cpu_array, bytesOfArray, cudaHostAllocDefault);
-    cudaHostAlloc(&out_gpu_array, bytesOfArray, cudaHostAllocDefault);
+    cudaMallocManaged(&inp_array, bytesOfArray);
+    cudaMallocManaged(&out_gpu_array, bytesOfArray);
 
-    // Initialize the input array
     initialize_array(inp_array, SHAPE);
 
     // Initialize output arrays
@@ -111,15 +109,6 @@ int main() {
     prefixsum_cpu(inp_array, out_cpu_array, SHAPE);
     std::cout << "CPU computation done." << std::endl;
 
-    // Allocate device arrays
-    int* d_inp_array = nullptr;
-    int* d_out_gpu_array = nullptr;
-    cudaMalloc(&d_inp_array, bytesOfArray);
-    cudaMalloc(&d_out_gpu_array, bytesOfArray);
-
-    // Copy input array to device
-    cudaMemcpy(d_inp_array, inp_array, bytesOfArray, cudaMemcpyHostToDevice);
-
     // GPU Prefix Sum using Kogge-Stone scan
     const int blockSize = 128;
     const int numBlocks = (SHAPE + blockSize - 1) / blockSize;
@@ -128,27 +117,22 @@ int main() {
     int* block_sums = nullptr;
     cudaMalloc(&block_sums, numBlocks * sizeof(int));
 
-    // Launch the kernels
-    kogge_stone_scan_kernel<<<numBlocks, blockSize, sharedMemSize>>>(d_inp_array, d_out_gpu_array, block_sums, SHAPE);
-    reduced_blocks<<<numBlocks, blockSize>>>(d_out_gpu_array, block_sums, SHAPE);
+    // Launching the kernels
+    kogge_stone_scan_kernel<<<numBlocks, blockSize, sharedMemSize>>>(inp_array, out_gpu_array, block_sums, SHAPE);
+    reduced_blocks<<<numBlocks, blockSize>>>(out_gpu_array, block_sums, SHAPE);
 
     // Synchronize to wait for the GPU to finish
     cudaDeviceSynchronize();
     std::cout << "GPU computation done." << std::endl;
 
-    // Copy result back to host
-    cudaMemcpy(out_gpu_array, d_out_gpu_array, bytesOfArray, cudaMemcpyDeviceToHost);
-
     // Check the results
     check_array(out_cpu_array, out_gpu_array, SHAPE);
 
     // Clean up resources
-    cudaFree(d_inp_array);
-    cudaFree(d_out_gpu_array);
+    cudaFree(inp_array);
+    cudaFree(out_gpu_array);
     cudaFree(block_sums);
-    cudaFreeHost(inp_array);
-    cudaFreeHost(out_cpu_array);
-    cudaFreeHost(out_gpu_array);
+    delete[] out_cpu_array;
 
     return 0;
 }
